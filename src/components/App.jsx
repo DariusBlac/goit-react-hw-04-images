@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SearchBar } from './Searchbar/Searchbar';
 import { searchPhoto } from 'API/pixabay';
 import { ImageGallery } from './ImageGallery/ImageGallery';
@@ -6,82 +6,65 @@ import { Button } from './Button/Button';
 import { Modal } from './Modal/Modal';
 import { Loader } from './Loader/Loader';
 
-export class App extends Component {
-  state = {
-    q: '',
-    page: 1,
-    isLoading: false,
-    arrImage: [],
-    loadMore: false,
-    showModal: false,
-    largeImage: '',
-    description: '',
-  };
+export const App = () => {
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [arrImage, setArrImage] = useState([]);
+  const [loadMore, setLoadMore] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImage, setLargeImage] = useState('');
+  const [description, setDescription] = useState('');
 
-  componentDidUpdate(prevProps, prevState) {
-    const { q, page, arrImage } = this.state;
-    if (prevState.q !== q || prevState.page !== page) {
-      this.fetchPhotos(q, page, arrImage);
-    }
-  }
-
-  fetchPhotos = async (q, page, arr) => {
+  const getPhotos = useCallback(async () => {
     try {
-      this.setState({ isLoading: true });
+      setIsLoading(true);
       const data = await searchPhoto(q, page);
-      this.setState({
-        arrImage: [...arr, ...data.hits],
-        loadMore: page < Math.ceil(data.totalHits / 12),
-      });
+      setArrImage(prev => [...prev, ...data.hits]);
+      setLoadMore(page < Math.ceil(data.totalHits / 12));
     } catch (error) {
       console.log(error);
     } finally {
-      this.setState({ isLoading: false });
+      setIsLoading(false);
     }
+  }, [q, page]);
+
+  useEffect(() => {
+    if (!q) return;
+
+    getPhotos();
+  }, [q, getPhotos]);
+
+  const handleSubmit = value => {
+    setQ(value);
+    setPage(1);
+    setArrImage([]);
   };
 
-  handleSubmit = value => {
-    this.setState({ q: value, page: 1, arrImage: [] });
+  const handleClick = () => {
+    setPage(prev => prev + 1);
   };
 
-  handleClick = () => {
-    this.setState(prevState => {
-      return { page: prevState.page + 1 };
-    });
+  const openModal = (url, desc) => {
+    setShowModal(true);
+    setLargeImage(url);
+    setDescription(desc);
   };
 
-  openModal = (url, desc) => {
-    this.setState({ showModal: true, largeImage: url, description: desc });
+  const closeModal = () => {
+    setShowModal(false);
   };
 
-  closeModal = () => {
-    this.setState({ showModal: false });
-  };
+  return (
+    <>
+      <SearchBar handleSubmit={handleSubmit} />
+      <ImageGallery array={arrImage} openModal={openModal} />
+      {isLoading && <Loader />}
 
-  render() {
-    const {
-      arrImage,
-      isLoading,
-      largeImage,
-      showModal,
-      description,
-      loadMore,
-    } = this.state;
-    return (
-      <>
-        <SearchBar handleSubmit={this.handleSubmit} />
-        <ImageGallery array={arrImage} openModal={this.openModal} />
-        {isLoading && <Loader />}
-
-        {showModal && (
-          <Modal
-            src={largeImage}
-            alt={description}
-            closeModal={this.closeModal}
-          />
-        )}
-        {loadMore && <Button handleClick={this.handleClick} />}
-      </>
-    );
-  }
-}
+      {showModal && (
+        <Modal src={largeImage} alt={description} closeModal={closeModal} />
+      )}
+      {loadMore && <Button handleClick={handleClick} />}
+    </>
+  );
+};
